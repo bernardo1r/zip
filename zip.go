@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -11,10 +12,21 @@ import (
 	"time"
 )
 
-const usage = ``
+const usage = `Usage: zip [INPUT]
+Compress file or directory [INPUT] append '.zip'
+to the name of the compressed file`
+
+var (
+	outputfilename string
+	outputfile     *os.File
+)
 
 func checkError(err error) {
 	if err != nil {
+		if outputfile != nil {
+			outputfile.Close()
+			os.Remove(outputfilename)
+		}
 		log.Fatalln(err)
 	}
 }
@@ -77,14 +89,26 @@ func compressFile(filename string, zw *zip.Writer) error {
 }
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Println(usage)
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "%s\n", usage)
+	}
+	if len(os.Args) == 1 {
+		flag.Usage()
 		os.Exit(1)
 	}
 
-	root := filepath.Base(os.Args[1])
-	file, err := os.Create(root + ".zip")
+	flag.Parse()
+	if flag.NArg() > 1 {
+		fmt.Fprint(os.Stderr, "Too many input files specified\n")
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	root := filepath.Base(flag.Arg(0))
+	outputfilename = root + ".zip"
+	file, err := os.Create(outputfilename)
 	checkError(err)
+	outputfile = file
 	defer func() {
 		checkError(file.Close())
 	}()
